@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(updateCallTimer, 1000);
     setInterval(checkForIncomingCalls, 2000);
     setInterval(checkCallAcceptance, 500); // Poll every 500ms for faster detection
+    setInterval(checkIfCallEnded, 1000); // Poll to detect if other party hung up
 });
 
 window.addEventListener('beforeunload', async () => {
@@ -315,6 +316,10 @@ function endCallCleanup() {
     appState.callStartTime = null;
     appState.callDuration = 0;
     
+    // Reset the timer display
+    document.getElementById('call-timer').textContent = '00:00';
+    document.getElementById('call-duration').textContent = 'Duration: 00:00';
+    
     if (appState.localStream) {
         appState.localStream.getTracks().forEach(track => track.stop());
         appState.localStream = null;
@@ -379,9 +384,10 @@ async function checkCallAcceptance() {
         console.log('checkCallAcceptance - callId:', appState.currentCallId, 'Response:', data);
         
         if (data.status === 'success' && data.call) {
-            const callStatus = String(data.call.status).toLowerCase();
-            console.log('Call status from server:', callStatus);
+            const callStatus = String(data.call.status).toLowerCase().trim();
+            console.log('Call status from server:', callStatus, '(type:', typeof callStatus, ')');
             
+            // The backend serializes CallStatus::InCall as "InCall", compare case-insensitively
             if (callStatus === 'incall') {
                 console.log('🎯 Detected call accepted! Starting timer...');
                 
@@ -403,6 +409,38 @@ async function checkCallAcceptance() {
         }
     } catch (error) {
         console.log('checkCallAcceptance error:', error.message);
+    }
+}
+
+async function checkIfCallEnded() {
+    // Only check if we're currently in a call
+    if (!appState.currentCallId) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/signal/status?call_id=${appState.currentCallId}`);
+        
+        if (!response.ok) {
+            // If the call is not found (404), it means it was ended
+            if (response.status === 404) {
+                console.log('🔴 Detected call was ended by other party');
+                endCallCleanup();
+                await loadUsers();
+            }
+            return;
+        }
+        
+        const data = await response.json();
+        
+        // If we get an error status, the call no longer exists
+        if (data.status === 'error' || !data.call) {
+            console.log('🔴 Call no longer exists on server');
+            endCallCleanup();
+            await loadUsers();
+        }
+    } catch (error) {
+        console.log('checkIfCallEnded error:', error.message);
     }
 }
 
