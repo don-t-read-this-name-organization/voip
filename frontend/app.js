@@ -134,8 +134,6 @@ async function initiateCall(targetId, isIpCall = false) {
             updateStatus('calling');
             showCallControls();
             requestAudioPermission();
-            
-            setTimeout(() => simulateIncomingCall(targetId), 1500);
         }
     } catch (error) {
         alert('Failed to initiate call');

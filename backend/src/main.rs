@@ -35,8 +35,8 @@ async fn main() -> std::io::Result<()> {
                     .route("/users/register", web::post().to(register_user))
                     .route("/users/list", web::get().to(list_users))
                     .route("/users/disconnect", web::post().to(disconnect_user))
+                    .service(web::scope("").configure(signaling::config))
             )
-            .service(web::scope("").configure(signaling::config))
     })
     .bind("0.0.0.0:5000")?
     .run()

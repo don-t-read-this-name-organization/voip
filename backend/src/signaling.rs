@@ -17,12 +17,12 @@ pub struct SignalingMessage {
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.route("/api/signal/initiate", web::post().to(initiate_call))
-        .route("/api/signal/accept", web::post().to(accept_call))
-        .route("/api/signal/reject", web::post().to(reject_call))
-        .route("/api/signal/end", web::post().to(end_call))
-        .route("/api/signal/hold", web::post().to(hold_call))
-        .route("/api/signal/resume", web::post().to(resume_call));
+    cfg.route("/signal/initiate", web::post().to(initiate_call))
+        .route("/signal/accept", web::post().to(accept_call))
+        .route("/signal/reject", web::post().to(reject_call))
+        .route("/signal/end", web::post().to(end_call))
+        .route("/signal/hold", web::post().to(hold_call))
+        .route("/signal/resume", web::post().to(resume_call));
 }
 
 async fn initiate_call(
