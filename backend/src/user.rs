@@ -6,6 +6,7 @@ pub struct User {
     pub username: String,
     pub ip_address: Option<String>,
     pub status: CallStatus,
+    pub last_heartbeat: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -31,6 +32,7 @@ impl User {
             username,
             ip_address: None,
             status: CallStatus::Idle,
+            last_heartbeat: chrono::Local::now().timestamp(),
         }
     }
 
@@ -41,4 +43,14 @@ impl User {
     pub fn set_status(&mut self, status: CallStatus) {
         self.status = status;
     }
+
+    pub fn update_heartbeat(&mut self) {
+        self.last_heartbeat = chrono::Local::now().timestamp();
+    }
+
+    pub fn is_inactive(&self, timeout_secs: i64) -> bool {
+        let now = chrono::Local::now().timestamp();
+        (now - self.last_heartbeat) > timeout_secs
+    }
 }
+

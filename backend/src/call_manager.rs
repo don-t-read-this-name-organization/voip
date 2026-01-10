@@ -140,4 +140,41 @@ impl CallManager {
             .cloned()
             .collect()
     }
+
+    pub fn update_heartbeat(&mut self, user_id: &str) -> bool {
+        if let Some(user) = self.users.get_mut(user_id) {
+            user.update_heartbeat();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn disconnect_inactive_users(&mut self, timeout_secs: i64) -> Vec<String> {
+        let mut disconnected_users = Vec::new();
+        let inactive_user_ids: Vec<String> = self.users
+            .values()
+            .filter(|u| u.is_inactive(timeout_secs) && u.status != CallStatus::Offline)
+            .map(|u| u.id.clone())
+            .collect();
+
+        for user_id in inactive_user_ids {
+            // End any active calls for this user
+            let active_calls: Vec<String> = self.calls
+                .values()
+                .filter(|c| c.caller_id == user_id || c.callee_id == user_id)
+                .map(|c| c.call_id.clone())
+                .collect();
+
+            for call_id in active_calls {
+                self.end_call(&call_id);
+            }
+
+            // Mark user as offline
+            self.disconnect_user(&user_id);
+            disconnected_users.push(user_id);
+        }
+
+        disconnected_users
+    }
 }

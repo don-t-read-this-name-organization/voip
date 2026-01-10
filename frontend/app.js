@@ -24,11 +24,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(checkForIncomingCalls, 2000);
     setInterval(checkCallAcceptance, 500); // Poll every 500ms for faster detection
     setInterval(checkIfCallEnded, 1000); // Poll to detect if other party hung up
+    setInterval(sendHeartbeat, 3000); // Send heartbeat every 3 seconds
 });
 
 window.addEventListener('beforeunload', async () => {
     if (appState.userId) {
         try {
+            // End call if one is active
+            if (appState.currentCallId) {
+                await fetch(`${API_BASE}/signal/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message_type: 'end',
+                        user_id: appState.userId,
+                        call_id: appState.currentCallId
+                    })
+                });
+            }
+            
+            // Disconnect user
             await fetch(`${API_BASE}/users/disconnect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -441,6 +456,22 @@ async function checkIfCallEnded() {
         }
     } catch (error) {
         console.log('checkIfCallEnded error:', error.message);
+    }
+}
+
+async function sendHeartbeat() {
+    if (!appState.userId) {
+        return;
+    }
+    
+    try {
+        await fetch(`${API_BASE}/users/heartbeat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: appState.userId })
+        });
+    } catch (error) {
+        console.log('Heartbeat failed:', error.message);
     }
 }
 

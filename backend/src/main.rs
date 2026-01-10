@@ -36,6 +36,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/users/list", web::get().to(list_users))
                     .route("/users/get", web::get().to(get_user))
                     .route("/users/disconnect", web::post().to(disconnect_user))
+                    .route("/users/heartbeat", web::post().to(user_heartbeat))
                     .service(web::scope("").configure(signaling::config))
             )
     })
@@ -94,6 +95,29 @@ async fn disconnect_user(
         "success": success
     }))
 }
+
+async fn user_heartbeat(
+    call_manager: web::Data<Arc<Mutex<CallManager>>>,
+    user_data: web::Json<serde_json::Value>,
+) -> actix_web::HttpResponse {
+    let user_id = user_data
+        .get("user_id")
+        .and_then(|u| u.as_str())
+        .unwrap_or("");
+    
+    let mut manager = call_manager.lock().await;
+    
+    // Update heartbeat for this user
+    let user_exists = manager.update_heartbeat(user_id);
+    
+    // Check for inactive users (timeout after 10 seconds of no heartbeat)
+    let _ = manager.disconnect_inactive_users(10);
+    
+    actix_web::HttpResponse::Ok().json(serde_json::json!({
+        "success": user_exists
+    }))
+}
+
 
 async fn get_user(
     call_manager: web::Data<Arc<Mutex<CallManager>>>,
