@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     setInterval(loadUsers, 5000);
     setInterval(updateCallTimer, 1000);
+    setInterval(checkForIncomingCalls, 2000);
 });
 
 window.addEventListener('beforeunload', async () => {
@@ -88,6 +89,10 @@ function renderUsersList(users) {
                 <span class="user-status ${user.status}"></span>
             </div>
             <span class="user-status-text">${user.status.toUpperCase()}</span>
+            <div class="user-item-actions">
+                <button class="btn btn-success user-accept-btn" data-user-id="${user.id}">Call</button>
+                ${user.status !== 'offline' ? `<button class="btn btn-secondary user-reject-btn" data-user-id="${user.id}">Block</button>` : ''}
+            </div>
         </div>
     `).join('');
 }
@@ -279,6 +284,37 @@ function simulateIncomingCall(callerId) {
     document.getElementById('call-modal').classList.remove('hidden');
 }
 
+async function checkForIncomingCalls() {
+    if (!appState.userId || appState.currentCallId) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/signal/incoming?user_id=${appState.userId}`);
+        const data = await response.json();
+        
+        if (data.call) {
+            const call = data.call;
+            appState.currentCallId = call.call_id;
+            appState.currentCallPartner = call.caller_id;
+            
+            const caller = await getUserName(call.caller_id);
+            simulateIncomingCall(caller);
+        }
+    } catch (error) {
+    }
+}
+
+async function getUserName(userId) {
+    try {
+        const response = await fetch(`${API_BASE}/users/get?user_id=${userId}`);
+        const data = await response.json();
+        return data.username || userId;
+    } catch (error) {
+        return userId;
+    }
+}
+
 async function requestAudioPermission() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -390,6 +426,8 @@ function updateCallTimer() {
 }
 
 function setupEventListeners() {
+    document.getElementById('refresh-users-btn').addEventListener('click', loadUsers);
+    
     document.getElementById('call-btn').addEventListener('click', () => {
         const targetId = document.getElementById('target-user').value;
         if (targetId) {
@@ -416,7 +454,14 @@ function setupEventListeners() {
     document.getElementById('reject-call-btn').addEventListener('click', rejectCall);
     
     document.addEventListener('click', (e) => {
-        if (e.target.closest('.user-item:not(.offline)')) {
+        if (e.target.closest('.user-accept-btn')) {
+            const userId = e.target.dataset.userId;
+            initiateCall(userId);
+        } else if (e.target.closest('.user-reject-btn')) {
+            const userItem = e.target.closest('.user-item');
+            const userName = userItem.querySelector('.user-name').textContent;
+            alert(`${userName} has been blocked (feature coming soon)`);
+        } else if (e.target.closest('.user-item:not(.offline)')) {
             const userItem = e.target.closest('.user-item');
             const userName = userItem.querySelector('.user-name').textContent;
             document.getElementById('target-user').value = userName;

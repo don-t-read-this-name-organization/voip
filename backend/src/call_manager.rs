@@ -132,4 +132,12 @@ impl CallManager {
     pub fn get_call(&self, call_id: &str) -> Option<&Call> {
         self.calls.get(call_id)
     }
+
+    pub fn get_incoming_calls(&self, user_id: &str) -> Vec<Call> {
+        self.calls
+            .values()
+            .filter(|call| call.callee_id == user_id && call.status == CallStatus::Calling)
+            .cloned()
+            .collect()
+    }
 }

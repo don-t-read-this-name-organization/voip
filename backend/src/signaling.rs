@@ -22,7 +22,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route("/signal/reject", web::post().to(reject_call))
         .route("/signal/end", web::post().to(end_call))
         .route("/signal/hold", web::post().to(hold_call))
-        .route("/signal/resume", web::post().to(resume_call));
+        .route("/signal/resume", web::post().to(resume_call))
+        .route("/signal/incoming", web::get().to(check_incoming_calls));
 }
 
 async fn initiate_call(
@@ -138,7 +139,7 @@ async fn resume_call(
     let mut manager = call_manager.lock().await;
     
     if let Some(call_id) = &msg.call_id {
-        manager.accept_call(call_id); // Resume by accepting again
+        manager.accept_call(call_id);
         
         HttpResponse::Ok().json(serde_json::json!({
             "status": "success",
@@ -148,6 +149,30 @@ async fn resume_call(
         HttpResponse::BadRequest().json(serde_json::json!({
             "status": "error",
             "message": "Call ID required"
+        }))
+    }
+}
+
+async fn check_incoming_calls(
+    call_manager: web::Data<Arc<Mutex<CallManager>>>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> HttpResponse {
+    let user_id = query.get("user_id").map(|s| s.as_str()).unwrap_or("");
+    
+    let manager = call_manager.lock().await;
+    let calls = manager.get_incoming_calls(user_id);
+    
+    if let Some(call) = calls.first() {
+        HttpResponse::Ok().json(serde_json::json!({
+            "call": {
+                "call_id": call.call_id,
+                "caller_id": call.caller_id,
+                "status": call.status
+            }
+        }))
+    } else {
+        HttpResponse::Ok().json(serde_json::json!({
+            "call": null
         }))
     }
 }

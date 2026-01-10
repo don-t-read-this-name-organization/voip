@@ -34,6 +34,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/health", web::get().to(health_check))
                     .route("/users/register", web::post().to(register_user))
                     .route("/users/list", web::get().to(list_users))
+                    .route("/users/get", web::get().to(get_user))
                     .route("/users/disconnect", web::post().to(disconnect_user))
                     .service(web::scope("").configure(signaling::config))
             )
@@ -92,4 +93,25 @@ async fn disconnect_user(
     actix_web::HttpResponse::Ok().json(serde_json::json!({
         "success": success
     }))
+}
+
+async fn get_user(
+    call_manager: web::Data<Arc<Mutex<CallManager>>>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> actix_web::HttpResponse {
+    let user_id = query.get("user_id").map(|s| s.as_str()).unwrap_or("");
+    
+    let manager = call_manager.lock().await;
+    
+    if let Some(user) = manager.get_user(user_id) {
+        actix_web::HttpResponse::Ok().json(serde_json::json!({
+            "user_id": user.id,
+            "username": user.username,
+            "status": user.status
+        }))
+    } else {
+        actix_web::HttpResponse::NotFound().json(serde_json::json!({
+            "error": "User not found"
+        }))
+    }
 }
