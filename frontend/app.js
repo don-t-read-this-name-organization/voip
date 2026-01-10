@@ -13,10 +13,6 @@ let appState = {
     peerConnection: null,
 };
 
-// ============================================
-// Initialization
-// ============================================
-
 document.addEventListener('DOMContentLoaded', async () => {
     await initializeUser();
     await loadUsers();
@@ -27,24 +23,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(updateCallTimer, 1000);
 });
 
-// Disconnect user when leaving the page
 window.addEventListener('beforeunload', async () => {
-window.addEventListener('beforeunload', async () => {
+    if (appState.userId) {
+        try {
             await fetch(`${API_BASE}/users/disconnect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: appState.userId })
             });
         } catch (error) {
-            console.error('Failed to disconnect user:', error);
         }
     }
 });
 
-// ============================================
-// User Management
-// ============================================
 async function initializeUser() {
+    const username = prompt('Enter your name:', 'User_' + Math.floor(Math.random() * 1000));
+    
+    if (!username) {
         alert('Username required!');
         return;
     }
@@ -61,29 +56,29 @@ async function initializeUser() {
         appState.username = data.username;
         
         document.getElementById('user-info').textContent = `Connected as: ${appState.username}`;
-        
-        console.log('User registered:', data);
-    } catch (error) {
-        console.error('Failed to register user:', error);
-        document.getElementById('user-info').textContent = `Connected as: ${appState.username}`;
-
-async function loadUsers() {
     } catch (error) {
         alert(`Failed to connect to server!\n\nAPI URL: ${API_BASE}\nError: ${error.message}`);
+    }
+}
+
+async function loadUsers() {
+    try {
+        const response = await fetch(`${API_BASE}/users/list`);
+        const data = await response.json();
         
         const users = data.users.filter(u => u.id !== appState.userId);
         renderUsersList(users);
         updateUserSelect(users);
     } catch (error) {
-        console.error('Failed to load users:', error);
     }
 }
 
 function renderUsersList(users) {
-        renderUsersList(users);
-        updateUserSelect(users);
-    } catch (error) {
-    }   return;
+    const usersList = document.getElementById('users-list');
+    
+    if (users.length === 0) {
+        usersList.innerHTML = '<p class="placeholder">No other users available</p>';
+        return;
     }
     
     usersList.innerHTML = users.map(user => `
@@ -112,15 +107,15 @@ function updateUserSelect(users) {
     select.value = currentValue;
 }
 
-// ============================================
-// Call Management
-// ============================================
-
 async function initiateCall(targetId, isIpCall = false) {
     if (!appState.userId) {
         alert('Please register first!');
         return;
-async function initiateCall(targetId, isIpCall = false) {
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/signal/initiate`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message_type: 'initiate',
@@ -140,21 +135,21 @@ async function initiateCall(targetId, isIpCall = false) {
             showCallControls();
             requestAudioPermission();
             
-            console.log('Call initiated:', data.call_id);
-            
-            // Simulate incoming call for demo - in real app, use WebSocket
             setTimeout(() => simulateIncomingCall(targetId), 1500);
         }
     } catch (error) {
-        console.error('Failed to initiate call:', error);
         alert('Failed to initiate call');
-            updateStatus('calling');
-            showCallControls();
-            requestAudioPermission();
-            
-            setTimeout(() => simulateIncomingCall(targetId), 1500);
-    } catch (error) {
-        alert('Failed to initiate call');
+    }
+}
+
+async function acceptCall() {
+    if (!appState.currentCallId) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/signal/accept`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
                 message_type: 'accept',
                 user_id: appState.userId,
                 call_id: appState.currentCallId
@@ -168,31 +163,29 @@ async function initiateCall(targetId, isIpCall = false) {
             document.getElementById('call-modal').classList.add('hidden');
             appState.callStartTime = Date.now();
             requestAudioPermission();
-            
-            console.log('Call accepted');
         }
     } catch (error) {
-        console.error('Failed to accept call:', error);
     }
 }
-        if (data.status === 'success') {
-            updateStatus('in-call');
-            document.getElementById('call-modal').classList.add('hidden');
-            appState.callStartTime = Date.now();
-            requestAudioPermission();
+
+async function rejectCall() {
+    if (!appState.currentCallId) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/signal/reject`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-    } catch (error) {
-    }           user_id: appState.userId,
+            body: JSON.stringify({
+                message_type: 'reject',
+                user_id: appState.userId,
                 call_id: appState.currentCallId
             })
         });
         
         if (response.ok) {
             endCallCleanup();
-            console.log('Call rejected');
         }
     } catch (error) {
-        console.error('Failed to reject call:', error);
     }
 }
 
@@ -200,20 +193,20 @@ async function endCall() {
     if (!appState.currentCallId) return;
     
     try {
-        if (response.ok) {
-            endCallCleanup();pplication/json' },
+        const response = await fetch(`${API_BASE}/signal/end`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-    } catch (error) {
-    }           call_id: appState.currentCallId
+                message_type: 'end',
+                user_id: appState.userId,
+                call_id: appState.currentCallId
             })
         });
         
         if (response.ok) {
             endCallCleanup();
-            console.log('Call ended');
         }
     } catch (error) {
-        console.error('Failed to end call:', error);
     }
 }
 
@@ -222,11 +215,13 @@ async function holdCall() {
     
     appState.isOnHold = !appState.isOnHold;
     
-        if (response.ok) {
-            endCallCleanup();${API_BASE}${endpoint}`, {
+    try {
+        const endpoint = appState.isOnHold ? '/signal/hold' : '/signal/resume';
+        const response = await fetch(`${API_BASE}${endpoint}`, {
             method: 'POST',
-    } catch (error) {
-    }           message_type: appState.isOnHold ? 'hold' : 'resume',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message_type: appState.isOnHold ? 'hold' : 'resume',
                 user_id: appState.userId,
                 call_id: appState.currentCallId
             })
@@ -238,10 +233,8 @@ async function holdCall() {
             updateStatus(appState.isOnHold ? 'on-hold' : 'in-call');
             const holdBtn = document.getElementById('hold-btn');
             holdBtn.classList.toggle('active', appState.isOnHold);
-            holdBtn.textContent = appState.isOnHold ? '⏯ Resume' : '⏸ Hold';
         }
     } catch (error) {
-        console.error('Failed to hold/resume call:', error);
     }
 }
 
@@ -249,14 +242,14 @@ function toggleMute() {
     appState.isMuted = !appState.isMuted;
     
     if (appState.localStream) {
-        if (data.status === 'success') {
-            updateStatus(appState.isOnHold ? 'on-hold' : 'in-call');
-    } catch (error) {
-    }onst muteBtn = document.getElementById('mute-btn');
+        appState.localStream.getAudioTracks().forEach(track => {
+            track.enabled = !appState.isMuted;
+        });
+    }
+    
+    const muteBtn = document.getElementById('mute-btn');
     muteBtn.classList.toggle('active', appState.isMuted);
-    muteBtn.innerHTML = appState.isMuted 
-        ? '<span class="icon">🔇</span> Unmute' 
-        : '<span class="icon">🔊</span> Mute';
+    muteBtn.textContent = appState.isMuted ? 'Unmute' : 'Mute';
 }
 
 function endCallCleanup() {
@@ -265,9 +258,11 @@ function endCallCleanup() {
     appState.isOnHold = false;
     appState.isMuted = false;
     appState.callStartTime = null;
-    const muteBtn = document.getElementById('mute-btn');
-    muteBtn.classList.toggle('active', appState.isMuted);
-    muteBtn.textContent = appState.isMuted ? 'Unmute' : 'Mute';
+    appState.callDuration = 0;
+    
+    if (appState.localStream) {
+        appState.localStream.getTracks().forEach(track => track.stop());
+        appState.localStream = null;
     }
     
     if (appState.peerConnection) {
@@ -281,29 +276,25 @@ function endCallCleanup() {
     document.getElementById('current-call-info').classList.add('hidden');
 }
 
-// ============================================
-// Simulation & Demo
-// ============================================
-
 function simulateIncomingCall(callerId) {
-    // In a real app, this would come from WebSocket
     document.getElementById('modal-caller-info').textContent = `Call from: ${callerId}`;
     document.getElementById('call-modal').classList.remove('hidden');
 }
 
-// ============================================
-// Audio Management
-// ============================================
-
 async function requestAudioPermission() {
-function simulateIncomingCall(callerId) {
-    document.getElementById('modal-caller-info').textContent = `Call from: ${callerId}`;
-    document.getElementById('call-modal').classList.remove('hidden');
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: true, 
+            video: false 
+        });
+        appState.localStream = stream;
+        
+        const localAudio = document.getElementById('local-audio');
         localAudio.srcObject = stream;
         
-        console.log('Audio permission granted');
-        
-async function requestAudioPermission() {red for calls');
+        setupAudioAnalyzer(stream);
+    } catch (error) {
+        alert('Microphone access is required for calls');
     }
 }
 
@@ -315,22 +306,24 @@ function setupAudioAnalyzer(stream) {
     }
     
     const source = audioContext.createMediaStreamSource(stream);
-        const localAudio = document.getElementById('local-audio');
-        localAudio.srcObject = stream;
-        
-        setupAudioAnalyzer(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    
+    source.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    visualizeAudio();
 }
 
-    } catch (error) {
-        alert('Microphone access is required for calls');
+function visualizeAudio() {
+    if (appState.currentCallId && analyser) {
+        analyser.getByteFrequencyData(dataArray);
         
-        // Update audio level meter
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
         const level = Math.round((average / 255) * 100);
         document.getElementById('audio-level').style.width = level + '%';
         document.getElementById('audio-status').textContent = level > 10 ? 'Active' : 'Quiet';
         
-        // Draw canvas visualization
         drawAudioVisualization();
     }
     
@@ -344,16 +337,18 @@ function setupAudioVisualization() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 }
-function visualizeAudio() {
-    if (appState.currentCallId && analyser) {
-        analyser.getByteFrequencyData(dataArray);
-        
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        const level = Math.round((average / 255) * 100);
-        document.getElementById('audio-level').style.width = level + '%';
-        document.getElementById('audio-status').textContent = level > 10 ? 'Active' : 'Quiet';
-        
-        drawAudioVisualization();
+
+function drawAudioVisualization() {
+    const canvas = document.getElementById('audio-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (!analyser || !dataArray) return;
+    
+    analyser.getByteFrequencyData(dataArray);
+    
     const barWidth = (canvas.width / dataArray.length) * 2.5;
     let barHeight, x = 0;
     
@@ -367,10 +362,6 @@ function visualizeAudio() {
         x += barWidth + 1;
     }
 }
-
-// ============================================
-// UI Updates
-// ============================================
 
 function updateStatus(status) {
     const badge = document.getElementById('status-badge');
@@ -392,16 +383,15 @@ function updateCallTimer() {
     if (appState.callStartTime) {
         appState.callDuration = Math.floor((Date.now() - appState.callStartTime) / 1000);
         const minutes = Math.floor(appState.callDuration / 60);
-function updateStatus(status) {('call-duration').textContent = `Duration: ${timeStr}`;
+        const seconds = appState.callDuration % 60;
+        
+        const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        document.getElementById('call-timer').textContent = timeStr;
+        document.getElementById('call-duration').textContent = `Duration: ${timeStr}`;
     }
 }
 
-// ============================================
-// Event Listeners
-// ============================================
-
 function setupEventListeners() {
-    // Call buttons
     document.getElementById('call-btn').addEventListener('click', () => {
         const targetId = document.getElementById('target-user').value;
         if (targetId) {
@@ -420,30 +410,6 @@ function setupEventListeners() {
         }
     });
     
-    // Call control buttons
-    document.getElementById('mute-btn').addEventListener('click', toggleMute);
-    document.getElementById('hold-btn').addEventListener('click', holdCall);
-    document.getElementById('end-call-btn').addEventListener('click', endCall);
-function setupEventListeners() {
-    document.getElementById('call-btn').addEventListener('click', () => {
-        if (e.target.closest('.user-item:not(.offline)')) {
-            const userItem = e.target.closest('.user-item');
-            const userName = userItem.querySelector('.user-name').textContent;
-            document.getElementById('target-user').value = userName;
-        }
-    });
-}
-
-console.log('VoIP Application loaded successfully');
-    document.getElementById('call-by-ip-btn').addEventListener('click', () => {
-        const ip = document.getElementById('target-ip').value;
-        if (ip) {
-            initiateCall(ip, true);
-        } else {
-            alert('Please enter an IP address');
-        }
-    });
-    
     document.getElementById('mute-btn').addEventListener('click', toggleMute);
     document.getElementById('hold-btn').addEventListener('click', holdCall);
     document.getElementById('end-call-btn').addEventListener('click', endCall);
@@ -451,6 +417,11 @@ console.log('VoIP Application loaded successfully');
     document.getElementById('accept-call-btn').addEventListener('click', acceptCall);
     document.getElementById('reject-call-btn').addEventListener('click', rejectCall);
     
-    document.addEventListener('click', (e) => {        }
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.user-item:not(.offline)')) {
+            const userItem = e.target.closest('.user-item');
+            const userName = userItem.querySelector('.user-name').textContent;
+            document.getElementById('target-user').value = userName;
+        }
     });
 }
