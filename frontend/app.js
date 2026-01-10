@@ -83,23 +83,31 @@ function renderUsersList(users) {
     }
     
     usersList.innerHTML = users.map(user => {
-        const isInCall = appState.currentCallId && (appState.currentCallPartner === user.id || appState.callStartTime);
+        const isCurrentUser = appState.currentCallPartner === user.id;
         const isOffline = user.status === 'offline';
+        const currentUserStatus = appState.callStartTime ? 'in-call' : appState.currentCallId ? 'calling' : 'idle';
         
         let buttonHtml = '';
-        if (isInCall) {
+        
+        if (isOffline) {
+            // Offline users have no buttons
+            buttonHtml = '';
+        } else if (isCurrentUser) {
+            // The other party in current call - show hang up button
             buttonHtml = `<button class="btn btn-danger user-hangup-btn" data-user-id="${user.id}">Hang Up</button>`;
-        } else if (!isOffline && !appState.currentCallId) {
+        } else if (currentUserStatus !== 'idle') {
+            // User is in a call with someone else - show busy for this user
+            buttonHtml = `<span class="user-busy">Busy</span>`;
+        } else {
+            // User is idle - show call and block buttons
             buttonHtml = `
                 <button class="btn btn-success user-accept-btn" data-user-id="${user.id}">Call</button>
                 <button class="btn btn-secondary user-reject-btn" data-user-id="${user.id}">Block</button>
             `;
-        } else if (!isOffline && appState.currentCallId) {
-            buttonHtml = `<span class="user-busy">Busy</span>`;
         }
         
         return `
-            <div class="user-item ${isOffline ? 'offline' : ''} ${isInCall ? 'in-call' : ''}">
+            <div class="user-item ${isOffline ? 'offline' : ''} ${isCurrentUser ? 'in-call' : ''}">
                 <div class="user-info-section">
                     <span class="user-name">${user.username}</span>
                     <span class="user-status ${user.status}"></span>
@@ -153,6 +161,7 @@ async function initiateCall(targetId, isIpCall = false) {
         if (data.status === 'success') {
             appState.currentCallId = data.call_id;
             appState.currentCallPartner = targetId;
+            appState.callStartTime = Date.now();
             
             updateStatus('calling');
             showCallControls();
