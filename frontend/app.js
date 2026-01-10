@@ -1,8 +1,4 @@
-// ============================================
-// VoIP Application - Frontend Application Logic
-// ============================================
-
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://192.168.100.61:5000/api';
 
 let appState = {
     userId: null,
@@ -22,21 +18,18 @@ let appState = {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('VoIP Application Starting...');
-    
     await initializeUser();
     await loadUsers();
     setupEventListeners();
     setupAudioVisualization();
     
-    setInterval(loadUsers, 5000); // Refresh users every 5 seconds
-    setInterval(updateCallTimer, 1000); // Update call timer every second
+    setInterval(loadUsers, 5000);
+    setInterval(updateCallTimer, 1000);
 });
 
 // Disconnect user when leaving the page
 window.addEventListener('beforeunload', async () => {
-    if (appState.userId) {
-        try {
+window.addEventListener('beforeunload', async () => {
             await fetch(`${API_BASE}/users/disconnect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -51,11 +44,7 @@ window.addEventListener('beforeunload', async () => {
 // ============================================
 // User Management
 // ============================================
-
 async function initializeUser() {
-    const username = prompt('Enter your name:', 'User_' + Math.floor(Math.random() * 1000));
-    
-    if (!username) {
         alert('Username required!');
         return;
     }
@@ -76,14 +65,11 @@ async function initializeUser() {
         console.log('User registered:', data);
     } catch (error) {
         console.error('Failed to register user:', error);
-        alert(`Failed to connect to server!\n\nAPI URL: ${API_BASE}\nError: ${error.message}`);
-    }
-}
+        document.getElementById('user-info').textContent = `Connected as: ${appState.username}`;
 
 async function loadUsers() {
-    try {
-        const response = await fetch(`${API_BASE}/users/list`);
-        const data = await response.json();
+    } catch (error) {
+        alert(`Failed to connect to server!\n\nAPI URL: ${API_BASE}\nError: ${error.message}`);
         
         const users = data.users.filter(u => u.id !== appState.userId);
         renderUsersList(users);
@@ -94,11 +80,10 @@ async function loadUsers() {
 }
 
 function renderUsersList(users) {
-    const usersList = document.getElementById('users-list');
-    
-    if (users.length === 0) {
-        usersList.innerHTML = '<p class="placeholder">No other users available</p>';
-        return;
+        renderUsersList(users);
+        updateUserSelect(users);
+    } catch (error) {
+    }   return;
     }
     
     usersList.innerHTML = users.map(user => `
@@ -135,11 +120,7 @@ async function initiateCall(targetId, isIpCall = false) {
     if (!appState.userId) {
         alert('Please register first!');
         return;
-    }
-    
-    try {
-        const response = await fetch(`${API_BASE}/signal/initiate`, {
-            method: 'POST',
+async function initiateCall(targetId, isIpCall = false) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message_type: 'initiate',
@@ -167,17 +148,13 @@ async function initiateCall(targetId, isIpCall = false) {
     } catch (error) {
         console.error('Failed to initiate call:', error);
         alert('Failed to initiate call');
-    }
-}
-
-async function acceptCall() {
-    if (!appState.currentCallId) return;
-    
-    try {
-        const response = await fetch(`${API_BASE}/signal/accept`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            updateStatus('calling');
+            showCallControls();
+            requestAudioPermission();
+            
+            setTimeout(() => simulateIncomingCall(targetId), 1500);
+    } catch (error) {
+        alert('Failed to initiate call');
                 message_type: 'accept',
                 user_id: appState.userId,
                 call_id: appState.currentCallId
@@ -198,17 +175,14 @@ async function acceptCall() {
         console.error('Failed to accept call:', error);
     }
 }
-
-async function rejectCall() {
-    if (!appState.currentCallId) return;
-    
-    try {
-        const response = await fetch(`${API_BASE}/signal/reject`, {
-            method: 'POST',
+        if (data.status === 'success') {
+            updateStatus('in-call');
+            document.getElementById('call-modal').classList.add('hidden');
+            appState.callStartTime = Date.now();
+            requestAudioPermission();
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message_type: 'reject',
-                user_id: appState.userId,
+    } catch (error) {
+    }           user_id: appState.userId,
                 call_id: appState.currentCallId
             })
         });
@@ -226,13 +200,11 @@ async function endCall() {
     if (!appState.currentCallId) return;
     
     try {
-        const response = await fetch(`${API_BASE}/signal/end`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        if (response.ok) {
+            endCallCleanup();pplication/json' },
             body: JSON.stringify({
-                message_type: 'end',
-                user_id: appState.userId,
-                call_id: appState.currentCallId
+    } catch (error) {
+    }           call_id: appState.currentCallId
             })
         });
         
@@ -250,13 +222,11 @@ async function holdCall() {
     
     appState.isOnHold = !appState.isOnHold;
     
-    try {
-        const endpoint = appState.isOnHold ? '/signal/hold' : '/signal/resume';
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        if (response.ok) {
+            endCallCleanup();${API_BASE}${endpoint}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message_type: appState.isOnHold ? 'hold' : 'resume',
+    } catch (error) {
+    }           message_type: appState.isOnHold ? 'hold' : 'resume',
                 user_id: appState.userId,
                 call_id: appState.currentCallId
             })
@@ -279,12 +249,10 @@ function toggleMute() {
     appState.isMuted = !appState.isMuted;
     
     if (appState.localStream) {
-        appState.localStream.getAudioTracks().forEach(track => {
-            track.enabled = !appState.isMuted;
-        });
-    }
-    
-    const muteBtn = document.getElementById('mute-btn');
+        if (data.status === 'success') {
+            updateStatus(appState.isOnHold ? 'on-hold' : 'in-call');
+    } catch (error) {
+    }onst muteBtn = document.getElementById('mute-btn');
     muteBtn.classList.toggle('active', appState.isMuted);
     muteBtn.innerHTML = appState.isMuted 
         ? '<span class="icon">🔇</span> Unmute' 
@@ -297,11 +265,9 @@ function endCallCleanup() {
     appState.isOnHold = false;
     appState.isMuted = false;
     appState.callStartTime = null;
-    appState.callDuration = 0;
-    
-    if (appState.localStream) {
-        appState.localStream.getTracks().forEach(track => track.stop());
-        appState.localStream = null;
+    const muteBtn = document.getElementById('mute-btn');
+    muteBtn.classList.toggle('active', appState.isMuted);
+    muteBtn.textContent = appState.isMuted ? 'Unmute' : 'Mute';
     }
     
     if (appState.peerConnection) {
@@ -330,23 +296,14 @@ function simulateIncomingCall(callerId) {
 // ============================================
 
 async function requestAudioPermission() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            audio: true, 
-            video: false 
-        });
-        appState.localStream = stream;
-        
-        const localAudio = document.getElementById('local-audio');
+function simulateIncomingCall(callerId) {
+    document.getElementById('modal-caller-info').textContent = `Call from: ${callerId}`;
+    document.getElementById('call-modal').classList.remove('hidden');
         localAudio.srcObject = stream;
         
         console.log('Audio permission granted');
         
-        // Setup audio visualization
-        setupAudioAnalyzer(stream);
-    } catch (error) {
-        console.error('Failed to get audio permission:', error);
-        alert('Microphone access is required for calls');
+async function requestAudioPermission() {red for calls');
     }
 }
 
@@ -358,18 +315,14 @@ function setupAudioAnalyzer(stream) {
     }
     
     const source = audioContext.createMediaStreamSource(stream);
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    
-    source.connect(analyser);
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
-    visualizeAudio();
+        const localAudio = document.getElementById('local-audio');
+        localAudio.srcObject = stream;
+        
+        setupAudioAnalyzer(stream);
 }
 
-function visualizeAudio() {
-    if (appState.currentCallId && analyser) {
-        analyser.getByteFrequencyData(dataArray);
+    } catch (error) {
+        alert('Microphone access is required for calls');
         
         // Update audio level meter
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
@@ -391,18 +344,16 @@ function setupAudioVisualization() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 }
-
-function drawAudioVisualization() {
-    const canvas = document.getElementById('audio-canvas');
-    const ctx = canvas.getContext('2d');
-    
-    ctx.fillStyle = '#f8f9fa';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    if (!analyser || !dataArray) return;
-    
-    analyser.getByteFrequencyData(dataArray);
-    
+function visualizeAudio() {
+    if (appState.currentCallId && analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const level = Math.round((average / 255) * 100);
+        document.getElementById('audio-level').style.width = level + '%';
+        document.getElementById('audio-status').textContent = level > 10 ? 'Active' : 'Quiet';
+        
+        drawAudioVisualization();
     const barWidth = (canvas.width / dataArray.length) * 2.5;
     let barHeight, x = 0;
     
@@ -441,11 +392,7 @@ function updateCallTimer() {
     if (appState.callStartTime) {
         appState.callDuration = Math.floor((Date.now() - appState.callStartTime) / 1000);
         const minutes = Math.floor(appState.callDuration / 60);
-        const seconds = appState.callDuration % 60;
-        
-        const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        document.getElementById('call-timer').textContent = timeStr;
-        document.getElementById('call-duration').textContent = `Duration: ${timeStr}`;
+function updateStatus(status) {('call-duration').textContent = `Duration: ${timeStr}`;
     }
 }
 
@@ -477,13 +424,8 @@ function setupEventListeners() {
     document.getElementById('mute-btn').addEventListener('click', toggleMute);
     document.getElementById('hold-btn').addEventListener('click', holdCall);
     document.getElementById('end-call-btn').addEventListener('click', endCall);
-    
-    // Modal buttons
-    document.getElementById('accept-call-btn').addEventListener('click', acceptCall);
-    document.getElementById('reject-call-btn').addEventListener('click', rejectCall);
-    
-    // User list clicks for direct calling
-    document.addEventListener('click', (e) => {
+function setupEventListeners() {
+    document.getElementById('call-btn').addEventListener('click', () => {
         if (e.target.closest('.user-item:not(.offline)')) {
             const userItem = e.target.closest('.user-item');
             const userName = userItem.querySelector('.user-name').textContent;
@@ -493,3 +435,22 @@ function setupEventListeners() {
 }
 
 console.log('VoIP Application loaded successfully');
+    document.getElementById('call-by-ip-btn').addEventListener('click', () => {
+        const ip = document.getElementById('target-ip').value;
+        if (ip) {
+            initiateCall(ip, true);
+        } else {
+            alert('Please enter an IP address');
+        }
+    });
+    
+    document.getElementById('mute-btn').addEventListener('click', toggleMute);
+    document.getElementById('hold-btn').addEventListener('click', holdCall);
+    document.getElementById('end-call-btn').addEventListener('click', endCall);
+    
+    document.getElementById('accept-call-btn').addEventListener('click', acceptCall);
+    document.getElementById('reject-call-btn').addEventListener('click', rejectCall);
+    
+    document.addEventListener('click', (e) => {        }
+    });
+}

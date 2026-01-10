@@ -8,7 +8,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
         <header class="header">
             <h1>VoIP Phone System</h1>
             <div class="header-info">
@@ -17,9 +16,7 @@
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="main-content">
-            <!-- Left Panel: Users List -->
             <section class="panel users-panel">
                 <h2>Available Users</h2>
                 <div id="users-list" class="users-list">
@@ -27,19 +24,16 @@
                 </div>
             </section>
 
-            <!-- Center Panel: Call Area -->
             <section class="panel call-panel">
                 <div class="call-section">
                     <h2>Make a Call</h2>
                     
-                    <!-- IP Address Input -->
                     <div class="form-group">
                         <label for="target-ip">Enter Target IP Address:</label>
                         <input type="text" id="target-ip" placeholder="e.g., 192.168.1.100" maxlength="100">
                         <button id="call-by-ip-btn" class="btn btn-primary">Call by IP</button>
                     </div>
 
-                    <!-- User Selection -->
                     <div class="form-group">
                         <label for="target-user">Or Select User:</label>
                         <select id="target-user">
@@ -48,24 +42,16 @@
                         <button id="call-btn" class="btn btn-primary">Call</button>
                     </div>
 
-                    <!-- Call Controls -->
                     <div id="call-controls" class="call-controls hidden">
                         <div class="controls-group">
-                            <button id="mute-btn" class="btn btn-secondary btn-icon">
-                                <span class="icon">🔊</span> Mute
-                            </button>
-                            <button id="hold-btn" class="btn btn-secondary btn-icon">
-                                <span class="icon">⏸</span> Hold
-                            </button>
-                            <button id="end-call-btn" class="btn btn-danger btn-icon">
-                                <span class="icon">☎️</span> End Call
-                            </button>
+                            <button id="mute-btn" class="btn btn-secondary btn-icon">Mute</button>
+                            <button id="hold-btn" class="btn btn-secondary btn-icon">Hold</button>
+                            <button id="end-call-btn" class="btn btn-danger btn-icon">End Call</button>
                         </div>
                         <div id="call-timer" class="call-timer">00:00</div>
                     </div>
                 </div>
 
-                <!-- Current Call Info -->
                 <div id="current-call-info" class="current-call-info hidden">
                     <h3>Current Call</h3>
                     <p id="call-participant" class="call-participant"></p>
@@ -73,7 +59,6 @@
                 </div>
             </section>
 
-            <!-- Right Panel: Audio Visualization -->
             <section class="panel audio-panel">
                 <h2>Audio</h2>
                 <div class="audio-controls">
@@ -86,7 +71,6 @@
             </section>
         </main>
 
-        <!-- Call Request Modal -->
         <div id="call-modal" class="modal hidden">
             <div class="modal-content call-request-modal">
                 <h3>Incoming Call</h3>
@@ -98,13 +82,11 @@
             </div>
         </div>
 
-        <!-- Footer -->
         <footer class="footer">
             <p>&copy; 2026 VoIP Application | Backend: Rust Actix-web | Frontend: HTML5 WebRTC</p>
         </footer>
     </div>
 
-    <!-- Hidden audio elements -->
     <audio id="remote-audio" autoplay></audio>
     <audio id="local-audio" autoplay muted></audio>
 
