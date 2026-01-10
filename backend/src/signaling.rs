@@ -58,10 +58,24 @@ async fn accept_call(
     if let Some(call_id) = &msg.call_id {
         manager.accept_call(call_id);
         
-        HttpResponse::Ok().json(serde_json::json!({
-            "status": "success",
-            "message": "Call accepted"
-        }))
+        // Get the updated call to return its status
+        if let Some(call) = manager.get_call(call_id) {
+            HttpResponse::Ok().json(serde_json::json!({
+                "status": "success",
+                "message": "Call accepted",
+                "call": {
+                    "call_id": call.call_id,
+                    "caller_id": call.caller_id,
+                    "callee_id": call.callee_id,
+                    "status": call.status
+                }
+            }))
+        } else {
+            HttpResponse::Ok().json(serde_json::json!({
+                "status": "success",
+                "message": "Call accepted"
+            }))
+        }
     } else {
         HttpResponse::BadRequest().json(serde_json::json!({
             "status": "error",
