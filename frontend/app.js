@@ -9,6 +9,8 @@ let appState = {
     isOnHold: false,
     callStartTime: null,
     callDuration: 0,
+    pausedDuration: 0,
+    holdStartTime: null,
     localIP: null,
     peerConnection: null,
     localStream: null,
@@ -188,23 +190,14 @@ function renderUsersList(users) {
             // The other party in current call - show hang up button
             buttonHtml = `<button class="btn btn-danger user-hangup-btn" data-user-id="${user.id}">Hang Up</button>`;
         } else if (currentUserStatus !== 'idle') {
-            // Current user is in a call - show busy with block button for other users
-            buttonHtml = `
-                <span class="user-busy">Busy</span>
-                <button class="btn btn-secondary user-reject-btn" data-user-id="${user.id}">Block</button>
-            `;
+            // Current user is in a call - show busy
+            buttonHtml = `<span class="user-busy">Busy</span>`;
         } else if (userIsBusy) {
-            // Other user is busy (calling/in-call/on-hold) - show busy with block button
-            buttonHtml = `
-                <span class="user-busy">Busy</span>
-                <button class="btn btn-secondary user-reject-btn" data-user-id="${user.id}">Block</button>
-            `;
+            // Other user is busy (calling/in-call/on-hold) - show busy
+            buttonHtml = `<span class="user-busy">Busy</span>`;
         } else if (user.status === 'idle') {
             // Only show call button if user is truly IDLE - not engaged in any call
-            buttonHtml = `
-                <button class="btn btn-success user-accept-btn" data-user-id="${user.id}">Call</button>
-                <button class="btn btn-secondary user-reject-btn" data-user-id="${user.id}">Block</button>
-            `;
+            buttonHtml = `<button class="btn btn-success user-accept-btn" data-user-id="${user.id}">Call</button>`;
         } else {
             // Fallback - no buttons
             buttonHtml = '';
@@ -302,6 +295,8 @@ async function initiateCall(targetId, isIpCall = false) {
             updateStatus('calling');
             showCallControls();
             setupAudioVisualization();
+            
+            console.log('📞 Call initiated, waiting for answer...');
         }
     } catch (error) {
         console.error('Failed to initiate call:', error);
@@ -336,6 +331,11 @@ function setupPeerConnectionHandlers() {
     appState.peerConnection.onconnectionstatechange = () => {
         console.log('Connection state:', appState.peerConnection.connectionState);
         if (appState.peerConnection.connectionState === 'connected') {
+            // Start the call timer when connection is established
+            if (!appState.callStartTime) {
+                appState.callStartTime = Date.now();
+                console.log('✅ Call connected, timer started');
+            }
             updateStatus('in-call');
         }
     };
@@ -403,13 +403,13 @@ async function acceptCall() {
                 // Start polling for ICE candidates
                 pollForCandidates();
                 
-                appState.callStartTime = Date.now();
-                updateStatus('in-call');
+                // Don't start timer here - wait for WebRTC connection
+                updateStatus('connecting');
                 showCallControls();
                 document.getElementById('call-modal').classList.add('hidden');
                 document.getElementById('current-call-info').classList.remove('hidden');
                 setupAudioVisualization();
-                console.log('✅ Call accepted, WebRTC connection established');
+                console.log('✅ Call accepted, establishing WebRTC connection...');
             }
         }
     } catch (error) {
@@ -466,6 +466,10 @@ async function pollForAnswer() {
                 
                 // Start polling for ICE candidates
                 pollForCandidates();
+                
+                // Update status to connecting while WebRTC establishes
+                updateStatus('connecting');
+                console.log('✅ Received answer, establishing WebRTC connection...');
                 
                 clearInterval(pollInterval);
             }
@@ -534,6 +538,51 @@ async function holdCall() {
     
     appState.isOnHold = !appState.isOnHold;
     
+    if (appState.isOnHold) {
+        // Pause the timer and save when hold started
+        if (appState.callStartTime) {
+            appState.pausedDuration = Math.floor((Date.now() - appState.callStartTime) / 1000);
+            appState.holdStartTime = Date.now();
+        }
+        
+        // Mute local audio tracks during hold
+        if (appState.localStream) {
+            appState.localStream.getAudioTracks().forEach(track => {
+                track.enabled = false;
+            });
+        }
+        
+        // Disable remote audio playback
+        const remoteAudio = document.getElementById('remote-audio');
+        if (remoteAudio) {
+            remoteAudio.muted = true;
+        }
+        
+        console.log('📴 Call on hold - audio paused, timer paused');
+    } else {
+        // Resume: adjust call start time to account for hold duration
+        if (appState.holdStartTime) {
+            const holdDuration = Math.floor((Date.now() - appState.holdStartTime) / 1000);
+            appState.callStartTime = Date.now() - (appState.pausedDuration * 1000);
+            appState.holdStartTime = null;
+        }
+        
+        // Unmute local audio tracks
+        if (appState.localStream && !appState.isMuted) {
+            appState.localStream.getAudioTracks().forEach(track => {
+                track.enabled = true;
+            });
+        }
+        
+        // Enable remote audio playback
+        const remoteAudio = document.getElementById('remote-audio');
+        if (remoteAudio) {
+            remoteAudio.muted = false;
+        }
+        
+        console.log('📞 Call resumed - audio restored, timer resumed');
+    }
+    
     try {
         const endpoint = appState.isOnHold ? '/signal/hold' : '/signal/resume';
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -552,8 +601,10 @@ async function holdCall() {
             updateStatus(appState.isOnHold ? 'on-hold' : 'in-call');
             const holdBtn = document.getElementById('hold-btn');
             holdBtn.classList.toggle('active', appState.isOnHold);
+            holdBtn.textContent = appState.isOnHold ? 'Resume' : 'Hold';
         }
     } catch (error) {
+        console.error('Hold/Resume error:', error);
     }
 }
 
@@ -581,6 +632,8 @@ function endCallCleanup() {
     appState.isMuted = false;
     appState.callStartTime = null;
     appState.callDuration = 0;
+    appState.pausedDuration = 0;
+    appState.holdStartTime = null;
     
     // Reset the timer display
     document.getElementById('call-timer').textContent = '00:00';
@@ -821,7 +874,8 @@ function hideCallControls() {
 }
 
 function updateCallTimer() {
-    if (appState.callStartTime) {
+    // Only update timer if call is active and not on hold
+    if (appState.callStartTime && !appState.isOnHold) {
         appState.callDuration = Math.floor((Date.now() - appState.callStartTime) / 1000);
         const minutes = Math.floor(appState.callDuration / 60);
         const seconds = appState.callDuration % 60;
@@ -829,6 +883,12 @@ function updateCallTimer() {
         const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         document.getElementById('call-timer').textContent = timeStr;
         document.getElementById('call-duration').textContent = `Duration: ${timeStr}`;
+    } else if (appState.isOnHold && appState.pausedDuration >= 0) {
+        // Show paused time when on hold
+        const minutes = Math.floor(appState.pausedDuration / 60);
+        const seconds = appState.pausedDuration % 60;
+        const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} (PAUSED)`;
+        document.getElementById('call-timer').textContent = timeStr;
     }
 }
 
