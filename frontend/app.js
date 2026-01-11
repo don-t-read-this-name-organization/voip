@@ -131,7 +131,7 @@ async function initializeUser() {
     const username = prompt('Enter your name:', 'User_' + Math.floor(Math.random() * 1000));
     
     if (!username) {
-        alert('Username required!');
+        console.error('Username required!');
         return;
     }
     
@@ -151,7 +151,7 @@ async function initializeUser() {
         // Start polling for incoming calls
         setInterval(checkIncomingCalls, 1000);
     } catch (error) {
-        alert(`Failed to connect to server!\n\nAPI URL: ${API_BASE}\nError: ${error.message}`);
+        console.error(`Failed to connect to server! API URL: ${API_BASE}, Error: ${error.message}`);
     }
 }
 
@@ -237,7 +237,7 @@ function updateUserSelect(users) {
 
 async function initiateCall(targetId, isIpCall = false) {
     if (!appState.userId) {
-        alert('Please register first!');
+        console.error('Please register first!');
         return;
     }
     
@@ -300,7 +300,6 @@ async function initiateCall(targetId, isIpCall = false) {
         }
     } catch (error) {
         console.error('Failed to initiate call:', error);
-        alert('Failed to initiate call: ' + error.message);
     }
 }
 
@@ -764,6 +763,42 @@ async function checkIfCallEnded() {
             console.log('🔴 Call no longer exists on server');
             endCallCleanup();
             await loadUsers();
+        } else if (data.call) {
+            // Check if the other user put the call on hold
+            const serverStatus = String(data.call.status).toLowerCase().trim();
+            if (serverStatus === 'onhold' && !appState.isOnHold) {
+                console.log('📴 Other user put call on hold');
+                // Mirror the hold state locally
+                appState.isOnHold = true;
+                if (appState.callStartTime) {
+                    appState.pausedDuration = Math.floor((Date.now() - appState.callStartTime) / 1000);
+                    appState.holdStartTime = Date.now();
+                }
+                const remoteAudio = document.getElementById('remote-audio');
+                if (remoteAudio) remoteAudio.muted = true;
+                updateStatus('on-hold');
+                const holdBtn = document.getElementById('hold-btn');
+                if (holdBtn) {
+                    holdBtn.classList.add('active');
+                    holdBtn.textContent = 'Resume';
+                }
+            } else if (serverStatus === 'incall' && appState.isOnHold) {
+                console.log('📞 Other user resumed call');
+                // Mirror the resume state locally
+                appState.isOnHold = false;
+                if (appState.holdStartTime && appState.callStartTime) {
+                    appState.callStartTime = Date.now() - (appState.pausedDuration * 1000);
+                    appState.holdStartTime = null;
+                }
+                const remoteAudio = document.getElementById('remote-audio');
+                if (remoteAudio) remoteAudio.muted = false;
+                updateStatus('in-call');
+                const holdBtn = document.getElementById('hold-btn');
+                if (holdBtn) {
+                    holdBtn.classList.remove('active');
+                    holdBtn.textContent = 'Hold';
+                }
+            }
         }
     } catch (error) {
         console.log('checkIfCallEnded error:', error.message);
@@ -900,7 +935,7 @@ function setupEventListeners() {
         if (targetId) {
             initiateCall(targetId);
         } else {
-            alert('Please select a user to call');
+            console.error('Please select a user to call');
         }
     });
     
@@ -909,7 +944,7 @@ function setupEventListeners() {
         if (ip) {
             initiateCall(ip, true);
         } else {
-            alert('Please enter an IP address');
+            console.error('Please enter an IP address');
         }
     });
     
